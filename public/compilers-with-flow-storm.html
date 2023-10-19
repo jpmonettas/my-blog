@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>Debugging Compilers with FlowStorm</title>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link type="application/atom+xml" rel="alternate" href="atom.xml" title="Debugging Compilers with FlowStorm">
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.28.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.28.0/components/prism-clojure.min.js"></script>
+    <script type="text/javascript" src="https://livejs.com/live.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.28.0/themes/prism.min.css">
+
+
+
+    <!-- Social sharing (Facebook, Twitter, LinkedIn, etc.) -->
+    <meta name="title" content="Debugging Compilers with FlowStorm">
+    <meta name="twitter:title" content="Debugging Compilers with FlowStorm">
+    <meta property="og:title" content="Debugging Compilers with FlowStorm">
+    <meta property="og:type" content="website">
+
+
+    <meta name="twitter:url" content="https://github.com/borkdude/quickblog/compilers-with-flow-storm.html">
+    <meta property="og:url" content="https://github.com/borkdude/quickblog/compilers-with-flow-storm.html">
+
+
+    <meta name="twitter:card" content="summary">
+
+
+
+  </head>
+  <body>
+
+    <div class="site-header">
+      <div class="wrapper">
+        <div class="site-nav">
+          <a class="page-link" href="archive.html">Archive</a>
+          <a class="page-link" href="tags/index.html">Tags</a>
+          <a class="page-link" href="">Discuss</a>
+	  <a class="page-link" href="atom.xml">
+            Feed
+          </a>
+	  
+	  
+        </div>
+        <div>
+          <h1 class="site-title">
+            <a class="page-link" href="index.html">A bi1 0f fun</a>
+          </h1>
+	  <p>A blog about Clojure, interactive programming, dev tooling and more...</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="wrapper">
+
+      <h1>
+  
+  Debugging Compilers with FlowStorm
+  
+</h1>
+<p>This is (I hope) part of a series of blog posts with some ideas on using <a href='http://www.flow-storm.org'>FlowStorm</a>, a Clojure omniscient  and time travel debugger, to help us reason about Clojure systems.</p><p>This first post, is going to be part a FlowStorm overview, and part a tour of the ClojureScript compiler internals, since we are going to be using it as en example of a non trivial system we would like to explore.</p><h1>Before starting</h1><p>Following this post doesn't require any particular knowledge on compilers. The ClojureScript compiler can be seen as a system that will take a string representing a Clojure code form, read it, recursively parse it into a tree of expressions  also known as the AST (abstract syntax tree), and then walks down the tree emitting strings containing JavaScript  code. </p><p>You can think of it like : </p><pre><code class="lang-clojure">&#40;-&gt; code-string
+    &#40;read&#41;
+    &#40;analyze-and-macroexpand&#41;
+    &#40;emit-js&#41;&#41;
+</code></pre><p>which is of course an over simplificaiton, but should be enough for following post.</p><p>If you like, you can follow along this post by copying and pasting the commands into your reminal. It will not depend on any particular IDE or pre-installed tooling, appart from the clojure cli and git.</p><p>If it is your first encounter with FlowStorm, we call it a debugger, since a lot of its features are those found on debuggers, but its capabilities can be used for much more than chasing bugs.</p><p>FlowStorm was designed as a tool for visualizing what is happening inside our Clojure programs as they run during development, and specially designed with interactive programming and immutability in mind.</p><p>For people new to Clojure and Lisps in general, interactive programming is about developing a program by interacting with its running process. This is quite different with the more traditional way of modifying your files, recompilig everything (hopefully incrementally), running the process, stopping it, then rinse and repeat. Immutability is about our programs dealing mostly with immutable values, insted of references to mutable objects or places in memory.</p><p>Interactivity and immutability alone are already quite powerful tools when trying to understand a system, given you can poke at it by calling different functions, inspect the data, modify and recompile specific parts, all without losing your application state or having to deal with long compilation times.</p><p>But poking at systems this way, via manual function calling, println (or the more modern tap>), scope capturing, single stepping, etc, works their best when you know most of the system and you are confident that looking at specific points in the execution will be enough to reveal the answers to your questions. So on top of that FlowStorm provides an easy way of recording and visualizing our programs execution when we need it.</p><p>Ok, enough preamble, lets jump into it.</p><h1>Setting up</h1><p>For working with the ClojureScript compiler we first need its sources, so lets start by clonning the repo's master branch :</p><pre><code class="lang-bash">$ git clone https://github.com/clojure/clojurescript
+$ cd clojurescript
+</code></pre><p>Now we can setup FlowStorm by modifying the project <code>deps.edn</code> file like this :</p><pre><code class="lang-clojure">{... 
+ :aliases
+ {...
+  :storm
+  {:classpath-overrides {org.clojure/clojure nil} ;; for disabling the official compiler
+   :extra-deps {com.github.flow-storm/clojure {:mvn/version &quot;1.11.1-11&quot;}
+                com.github.flow-storm/flow-storm-dbg {:mvn/version &quot;3.8.1&quot;}}
+   :jvm-opts &#91;&quot;-Dclojure.storm.instrumentEnable=true&quot;
+              &quot;-Dclojure.storm.instrumentOnlyPrefixes=cljs&quot;
+              &quot;-Dflowstorm.startRecording=false&quot;
+              &quot;-Dclojure.server.repl={:port 5555 :accept clojure.core.server/repl}&quot;&#93;}}}
+
+</code></pre><p>There is quite a lot going on there, luckly we only need to do this once.</p><p>We added a new alias <code>:storm</code> so we can easily start a repl with everything we need. </p><p>The important parts are :</p><ul><li>we disabled the official Clojure compiler, since we are going to swap it by ClojureStorm, our dev compiler</li><li>added FlowStorm and ClojureStorm dependencies</li><li>told ClojureStorm that:<ul><li>we want instrumentation enable at startup</li><li>to instrument all namespaces under <code>cljs.&#42;</code></li><li>and that recording should be disabled at startup</li></ul></li><li>we also start a socket repl so we can have two terminals, one with a ClojureScript repl and another with a Clojure one,    both on the same JVM process  </li></ul><p>Now we can finally run a Clojure repl with the <code>:storm</code> alias :</p><pre><code class="lang-bash">$ clj -A:storm
+ClojureStorm 1.11.1-11
+
+Evaluate the :help keyword for more info or :tut/basics for a beginners tour.
+</code></pre><p>As soon as the repl starts, the first thing we do is to start the FlowStorm GUI, which we do by evaluating the <code>:dbg</code> key in this ClojureStorm repl.</p><pre><code class="lang-clojure">user=&gt; :dbg
+user=&gt; &#40;require 'cljs.main&#41;
+user=&gt; &#40;cljs.main/-main &quot;--repl&quot;&#41;
+
+ClojureScript 0.0.249695361
+cljs.user=&gt;
+</code></pre><p>Right after, we require the main ClojureScript compiler namespace, and then run the main function with the <code>--repl</code> arg (for people new to Clojure, the ClojureScript compiler is just a function we can invoke from our repl), which tells it to start a browser repl.  This should have opened a browser window and replaced our Clojure repl with a ClojureScript one.  Everything we type on this new repl will be read, compiled into JavaScript and sent to the browser for execution.</p><p>And last but not least we will connect another Clojure repl to the same process our compiler is running, by using telnet to connect to the socket repl we started earlier.</p><pre><code class="lang-bash">$ telnet 127.0.0.1 5555
+
+user=&gt;
+</code></pre><p>And that is all the setup we need, at this point we should have :     </p><ul><li>a terminal with a Clojure repl</li><li>a terminal with a ClojureScript repl connected to the browser</li><li>the FlowStorm UI  </li></ul><h1>FlowStorm UI basics</h1><p>If you are a FlowStorm user already you may want to skip this, otherwise I'm going to give a very quick tour of the FlowStorm main UI.</p><p><img src="assets/compilers-with-flow-storm/flow-storm-ui.png"></p><p>When you just start FlowStorm and you don't have any recordings you see :</p><ol><li>Your clean button, to discard any recordings</li><li>Start/Stop recording button</li><li>A quick jump box to quickly jump into stepping any function</li><li>Your main tools tabs</li><li>And finally how much heap you have available, so you can keep an eye on it and clear your recordings when you are   running out of heap space</li></ol><p>Lets click the Start recording button, you should see the icon changing to a Stop, this is how you can tell if you are currently recording.</p><p>Now we are recording let go to our ClojureScript repl terminal and eval a simple function, like : </p><pre><code class="lang-clojure">cljs.user=&gt; &#40;defn sum &#91;a b&#93; &#40;+ a b&#41;&#41;
+</code></pre><p>After you hit enter it will make ClojureScript read and compile that function, which will generate a bunch of recordings.</p><p>We can safely stop recording now, since we already have the recordings for a full compilation of our simple funciton. It is good practise to stop recording when you don't need them since some applications will have threads constantly polling which will keep unnecesarily wasting our heap and maybe polluting what we want to look at.</p><p>As soon as we have recordings, we will see a list of threads on the left appearing.</p><p>This means that activity was recorded in those threads, so this is already interesting since we get to see that typing that expression on the repl is firing multiple threads.</p><p>Double clicking on a thread will open the thread recordings. We are just going to focus on the <code>main</code> thread since it is where all the compilation happens, but feel free to explore other threads activities.</p><p><img src="assets/compilers-with-flow-storm/flow-storm-ui-after-recording.png"></p><p>As soon as you open a thread you will be faced with the call tree, an expandable tree of all the functions calls recorded. Time flows from top to bottom here. As you can see in the picture above, just by spanding some nodes a bit we already see some familiar functions related to reading, parsing, and emitting javascript. By clicking on the <code>emit-str</code> function we also get to see the input of <code>emit-str</code> which is an AST node, and it's output, which is a string containing Javascript code.</p><p>There are also 3 important tools there : </p><ol><li>The call tree (the one we just talked about)</li><li>The code stepping tool, where you can step over the code forwards and backwards in time.</li><li>The functions list, where we get to see all the functions and their calls.</li></ol><p>Since this isn't a FlowStorm tutorial I'll not go in depth into any of this tools, you can find the user guide here  https://flow-storm.github.io/flow-storm-debugger/user_guide.html for more info.</p><p>Now lets look at how we can use FlowStorm to try to understand the different phases of the compilation.</p><h1>Parsing</h1><h2>The reader</h2><p>The first step of the ClojureScript compiler in terms of compilation is reading.</p><p>Read takes a string as the input and outputs a form, which is a nested structures of Clojure lists, vectors, maps, etc, representing just the structure on the string.</p><p>ClojureScript for this uses the <code>clojure.tools.reader/read</code> which is part of the <code>clojure.tools.reader</code> library.</p><p><img src="assets/compilers-with-flow-storm/reader1.png"> </p><p>If we want to take a quick look at the read code we can use the <code>Quick jump</code> tool to search for a read function like in the picture above. After hitting enter or clicking on it, it will move the  stepper to the first and only call to this function. You can tell it was only called once from the number right next to the name.</p><p>Now you can step using the controls at the top or click around the highlighted expression to see on the right panel what the value for that expression was at that point in time.</p><p>As we can see from the <code>read</code> source code, it is calling <code>read&#42;</code>. Looking at the <code>read&#42;</code> arguments and return value we can see it goes from a <code>SourceLoggingPushbackReader</code> into a Clojure form. If you want to step into <code>read&#42;</code>, position the debugger on any expression before the call, and then step next until you jump into its source code.</p><p>Since <code>read&#42;</code> has been called multiple time there is a better way of looking at all the read functions.</p><p><img src="assets/compilers-with-flow-storm/reader2.png"> </p><p>You can move to the functions list tool and constrain the list with only read functions like in the picture above.</p><p>Double clicking on each of them will list all the calls on the right with the arguments. Clicking on a call  will show the return value in the bottom panel, while double clicking will take you to step that call.</p><p>If you are folloiwng along with your own setup take some time to explore around this read functions.</p><p>Now lets explore the analysis of those forms.</p><h2>Analisis and macroexpansion</h2><p>Analisys is a recursive process that will take forms as input and produces a tree of ast nodes, which in this case are plain Clojure maps with an <code>:op</code> key with the type of the node and <code>:children</code> containing a vector of keys for the sub parts of the node.</p><p><img src="assets/compilers-with-flow-storm/analyze1.png"> </p><p>We can take the same approach as before to get an idea of this analisis functions and go to the functions list  and constrain by <code>analyzer/analyze</code>. Lets take a look at <code>analyze-seq</code>. This time we are going to mute arguments 1, 3 and 4 using the checkboxes at the top and just look at the second one, which contains the form to analyze. Lets click on the <code>&#40;defn sum &#91;...&#93; ...&#41;</code> one which is the top level experssion we typed at the repl.</p><p>If you look at the one right after it you will notice it is the same expression but after a <code>macroexpand-1</code> call. This is because the <code>analize-seq</code> will also deal with macroexpansion. You can double click any of this calls to jump  into <code>analyze-seq</code> body to check there is a call to <code>macroexpand-1</code> there.</p><p>Now back to the analyze-seq output of our defn expression. The panel at the bottom shows a pretty print of the node, but for this nested datastructures it is inconvenient. Lets click on the <code>INS</code> to open the inspector, which allows us to navigate this nested datastructures back and forth.</p><p><img src="assets/compilers-with-flow-storm/analyze1-inspect-def-op.png"> </p><p>You can click around to navigate deeper and use the breadcrumbs at the top of the inspector to navigate backwards.</p><p>Even with the inspector, trying to have a sense of the structure of this tree is kind of hard, so lets pull another feature.</p><p>We can take any of this values back to our repl by giving them a name. While having the inspector at the root of our value, click on the <code>DEF</code> button and give it a name, lets say <code>def-op</code>.</p><p>Now you can go to your Clojure repl (not the ClojureScript one) and eval something like <code>&#40;keys def-op&#41;</code> or do anything with it at the repl.</p><p>We are going to write a little helper function here to walk down the tree and just print the <code>:op</code> with indentation which will help us understand more about the structure of this tree.</p><pre><code class="lang-clojure">&#40;defn print-ast-node
+  
+  &quot;Recursively print ast-node ops with indentation&quot;
+
+  &#40;&#91;ast-node&#93; &#40;print-ast-node ast-node 0&#41;&#41;
+  &#40;&#91;{:keys &#91;op children&#93; :as ast-node} indent-level&#93;
+   &#40;println &#40;apply str &#40;repeat &#40;&#42; 2 indent-level&#41; &quot; &quot;&#41;&#41;
+            &#40;str &quot;op: &quot; op&#41;&#41;
+   &#40;doseq &#91;ch-key children&#93;
+     &#40;let &#91;ch-node &#40;get ast-node ch-key&#41;&#93;
+       &#40;if &#40;vector? ch-node&#41;
+         &#40;doseq &#91;ch ch-node&#93;
+           &#40;print-ast-node ch &#40;inc indent-level&#41;&#41;&#41;
+         &#40;print-ast-node ch-node &#40;inc indent-level&#41;&#41;&#41;&#41;&#41;&#41;&#41;
+</code></pre><p>Now we can call it with our <code>def-op</code> reference</p><pre><code class="lang-clojure">user=&gt; &#40;print-ast-node def-op&#41;
+ op: :def
+   op: :var
+   op: :fn
+     op: :binding
+     op: :fn-method
+       op: :binding
+       op: :binding
+       op: :do
+         op: :js
+           op: :local
+           op: :local
+</code></pre><p>which will give us a much better idea of the tree structure.</p><p>Take your time exploring the analysis code for each of those operations before jumping into the emission.</p><p>Ok, before jumping to the emission lets navigate to that <code>:op :js</code> which seams interesting. Go back to the root of the value and dig into this keys <code>&#91;:init :methods 0 :body :ret&#93;</code>. You should have the map with the <code>:op :js</code> focused on your inspector right pane.</p><p>Lets say we want to examine the emission of this particular node. One trick we could use is, keep the inspector open, goto the main window and then :</p><ol><li>jump to the code stepping tool</li><li>step to the last trace</li><li>and now back into the inspector hit "Find the prev expression that contains this value", which is the left arrow at   the top.</li></ol><p>What this will do is search the first usage of the current focused value from the back, which  should leave us in the emit code for that node. </p><h1>Emmiting JS</h1><p>We should be now positioned right before calling <code>&#40;emit&#42; ast&#41;</code> with ast being our node, inside the <code>cljs.compile/emit</code> funciton. </p><p><img src="assets/compilers-with-flow-storm/emit-js-op.png"> </p><p>To get some more context and see how we got here, we can look at the current stack on the bottom left panel. I looks like we are in the path of emitting our <code>:def</code>, <code>:fn</code> and  <code>:do</code> ast nodes, which make sense.</p><p>It also looks like we are emitting some other code, something wrapped in a try, which we haven't typed on  our repl. This is because the ClojureScript compiler is wrapping our code in some extra code that it needs before evaluating it on our browser, but we will ignore that for now.</p><p>Now stepping forward a couple of times should bring us to the emits function, which is the function that will finally emit javascript.</p><p><img src="assets/compilers-with-flow-storm/emits-js-op.png"> </p><p>Inspecting the value of <code>s</code> looks like for our node, it starts by emitting the return keyword.</p><p>We can also see here that the way the ClojureScript compiler emits Javascript is by wrinting on <code>&#42;out&#42;</code>. Since this is the place that writes Javascript strings, it could be interesting to see what are all the values being written along the entire execution, not just this time. </p><p>For this we are going to introduce one more feature, called the <code>Printer</code>. For inspecting the value of <code>s</code> along the execution we start by right clicking the <code>s</code> expression and then <code>Add to prints</code>. A dialog should popup asking for a message, we can write whatever we want here, this is the kind of messages we always add to our println debugging.  We can do this on as many expressions as we want, but this one should be enough for our purpose.</p><p><img src="assets/compilers-with-flow-storm/emits-printed.png"> </p><p>We can find the <code>Printer</code> tool by clicking on its tab, on the left.</p><p>At the top we should see a thread selector, and right after it all our defined printers. For running the printers we need to select a thread, in this case <code>main</code> and then click the refresh button. We should now see all our prints for the entire execution of the <code>main</code> thread, like in the picture above.</p><p>We can use the filter textfield to shrink our prints if we are searching for any particular emited Javascript. If you are interested in any particular print you can double click it and it will take us to the statement that print it at that point in time, where we can then use the rest of the tools to keep inspecting.</p><p>Go ahead and double click on any of them, so we are back on our <code>emits</code> function.</p><p>Using the printer we get to see all the single writes to <code>&#42;out&#42;</code> , which is also all the emited Javascript, but it could also be interesting to see it a little nicer, so we can copy and paste it in our editor for example.</p><p>We can use the fact that <code>&#42;out&#42;</code> is bounded to the same mutable value, a <code>StringWriter</code>, the whole time, which means that whatever reference we get to it contains the final state, the one it took after the execution.</p><p>Most of the time this is not what we want, and FlowStorm provides a way for dealing with mutable values, if you are interested take a look here https://flow-storm.github.io/flow-storm-debugger/user<i>guide.html#</i>dealing<i>with</i>mutable_values</p><p>But in this case we are going to take advantage of it, and just give it a name so we can take it to our repl.</p><p>This is the same we did before for our <code>def-node</code>, we click on the <code>&#42;out&#42;</code> expression and then on the <code>DEF</code> button at the right panel.</p><p>Now going back to our Clojure repl we can just print it.</p><pre><code class="lang-js">user=&gt; &#40;println &#40;.toString out&#41;&#41;
+
+&#40;function&#40;&#41; {
+    try {
+        return cljs.core.pr&#95;str.call&#40;null, &#40;function&#40;&#41; {
+            var ret&#95;&#95;13392&#95;&#95;auto&#95;&#95; = &#40;function&#40;&#41; {
+                cljs.user.sum = &#40;function cljs$user$sum&#40;a, b&#41; {
+                    return &#40;a + b&#41;;
+                }&#41;;
+                return &#40;
+                    new cljs.core.Var&#40;function&#40;&#41; {
+                        return cljs.user.sum;
+                    }, new cljs.core.Symbol&#40;&quot;cljs.user&quot;, &quot;sum&quot;, &quot;cljs.user/sum&quot;, 1580982348, null&#41;, cljs.core.PersistentHashMap.fromArrays&#40;&#91;new cljs.core.Keyword&#40;null, &quot;ns&quot;, &quot;ns&quot;, 441598760&#41;, new cljs.core.Keyword&#40;null, &quot;name&quot;, &quot;name&quot;, 1843675177&#41;, new cljs.core.Keyword&#40;null, &quot;file&quot;, &quot;file&quot;, -1269645878&#41;, new cljs.core.Keyword&#40;null, &quot;end-column&quot;, &quot;end-column&quot;, 1425389514&#41;, new cljs.core.Keyword&#40;null, &quot;source&quot;, &quot;source&quot;, -433931539&#41;, new cljs.core.Keyword&#40;null, &quot;column&quot;, &quot;column&quot;, 2078222095&#41;, new cljs.core.Keyword&#40;null, &quot;line&quot;, &quot;line&quot;, 212345235&#41;, new cljs.core.Keyword&#40;null, &quot;end-line&quot;, &quot;end-line&quot;, 1837326455&#41;, new cljs.core.Keyword&#40;null, &quot;arglists&quot;, &quot;arglists&quot;, 1661989754&#41;, new cljs.core.Keyword&#40;null, &quot;doc&quot;, &quot;doc&quot;, 1913296891&#41;, new cljs.core.Keyword&#40;null, &quot;test&quot;, &quot;test&quot;, 577538877&#41;&#93;, &#91;new cljs.core.Symbol&#40;null, &quot;cljs.user&quot;, &quot;cljs.user&quot;, 877795071, null&#41;, new cljs.core.Symbol&#40;null, &quot;sum&quot;, &quot;sum&quot;, 1777518341, null&#41;, &quot;&lt;cljs repl&gt;&quot;, 10, &quot;sum&quot;, 1, 1, 1, cljs.core.list&#40;new cljs.core.PersistentVector&#40;null, 2, 5, cljs.core.PersistentVector.EMPTY&#95;NODE, &#91;new cljs.core.Symbol&#40;null, &quot;a&quot;, &quot;a&quot;, -482876059, null&#41;, new cljs.core.Symbol&#40;null, &quot;b&quot;, &quot;b&quot;, -1172211299, null&#41;&#93;, null&#41;&#41;, null, &#40;cljs.core.truth&#95;&#40;cljs.user.sum&#41; ? cljs.user.sum.cljs$lang$test : null&#41;&#93;&#41;&#41;&#41;;
+            }&#41;&#40;&#41;;
+            &#40;cljs.core.&#95;STAR&#95;3 = cljs.core.&#95;STAR&#95;2&#41;;
+
+            &#40;cljs.core.&#95;STAR&#95;2 = cljs.core.&#95;STAR&#95;1&#41;;
+
+            &#40;cljs.core.&#95;STAR&#95;1 = ret&#95;&#95;13392&#95;&#95;auto&#95;&#95;&#41;;
+
+            return ret&#95;&#95;13392&#95;&#95;auto&#95;&#95;;
+        }&#41;&#40;&#41;&#41;;
+    } catch &#40;e24083&#41; {
+        var e&#95;&#95;13393&#95;&#95;auto&#95;&#95; = e24083;
+        &#40;cljs.core.&#95;STAR&#95;e = e&#95;&#95;13393&#95;&#95;auto&#95;&#95;&#41;;
+
+        throw e&#95;&#95;13393&#95;&#95;auto&#95;&#95;;
+    }
+}&#41;&#40;&#41;
+</code></pre><p>And there we have it, a quick way of looking at the last form entire generated Javascript string. Note that it is the full form that is going to be sent to the browser, which contains our <code>sum</code> function definition also wrapped in some extra code to print the result and also setup ClojureScript repl <code>&#42;1</code>, <code>&#42;2</code> and <code>&#42;3</code> vars and in case of an exception also <code>&#42;e</code>.</p><h1>Wrapping up</h1><p>So wrapping up we saw a bunch of techniques we can use to debug and understand the ClojureScript compiler. If we are developing it, this gives as a nice workflow : </p><ul><li>Start recording</li><li>On the ClojureScript repl write the expression we are interested in, so it compiles it</li><li>Stop recording</li><li>Look around</li><li>Modify and re-eval your compiler code</li><li>Repeat</li></ul><p>All the steps described there should be instant, since we are re-evaluating just what we changed on the ClojureScript compiler, and also compiling and recording one form at a time.</p><p>Also all the techniques described here are by no means special to compiler development, they can be used on any Clojure application. </p><p>Ok, I hope you had fun, find it interesting or learn something from this. Happy hacking.</p><p>Until the next time!</p>
+<p>Discuss this post <a href="">here</a>.</p>
+<p><i>Published: 2023-10-19</i></p>
+
+<p>
+  <i>
+  Tagged:
+  
+  <span class="tag">
+    <a href="tags/clojure.html">clojure</a>
+  </span>
+  
+  </i>
+</p>
+
+
+
+      
+      <div style="margin-bottom: 20px; float: right;">
+        <a class="page-link" href="archive.html">Archive</a>
+      </div>
+      
+    </div>
+  </body>
+</html>
