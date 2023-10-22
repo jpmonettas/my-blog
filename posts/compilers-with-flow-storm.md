@@ -11,8 +11,8 @@ since we are going to be using it as en example of a non trivial system we would
 # Before starting
 
 Following this post doesn't require any particular knowledge on compilers. Since the compilation unit of most Lisps is
-a from instead of a file like on most other languages, the core of the ClojureScript compiler can be seen as a
-program that will take a string representing a Clojure form, read it, recursively parse it into a tree of
+a form instead of a file like on most other languages, the core of the ClojureScript compiler can be seen as a
+program that will take a string representing a Clojure form as input, read it, recursively parse it into a tree of
 expressions also known as an AST (abstract syntax tree), and then walks down the tree emitting strings containing
 JavaScript  code. 
 
@@ -64,7 +64,7 @@ $ git clone https://github.com/clojure/clojurescript
 $ cd clojurescript
 ```
 
-We can now setup FlowStorm by modifying it's project `deps.edn` file like this :
+We can now setup FlowStorm by the just cloned project `deps.edn` like this :
 
 ```clojure
 {... 
@@ -83,7 +83,7 @@ We can now setup FlowStorm by modifying it's project `deps.edn` file like this :
 
 There is quite a lot going on there, luckily we only need to do this once.
 
-We added a new alias `:storm` so we can easily start a repl with everything we need. 
+We added a new alias, `:storm`, so we can easily start a repl with everything we need. 
 
 The important parts are :
 
@@ -97,8 +97,7 @@ The important parts are :
     both on the same JVM process
 
 FlowStorm can be used with just the official Clojure compiler, but by swapping it by the ClojureStorm dev compiler we
-get automatic instrumentation, which gives us a much nicer experience for the kind of things we are going to do in this
-post.
+get automatic instrumentation, which gives us a much nicer experience for the kind of things we are going to do next.
 
 Now we can finally run a Clojure repl with the `:storm` alias :
 
@@ -145,23 +144,24 @@ And that is all the setup we need, at this point we should have :
   * a terminal with a ClojureScript repl connected to the browser
   * the FlowStorm UI
   
-# FlowStorm UI basics
+# Recording 
 
-If you are a FlowStorm user already you may want to skip this, otherwise I'm going to give a very quick tour of the
-FlowStorm main UI.
+## FlowStorm UI basics
+
+When you just start FlowStorm and you still don't have any recordings you see :
 
 <img src="assets/compilers-with-flow-storm/flow-storm-ui.png">
 
-When you just start FlowStorm and you don't have any recordings you see :
-
 1. Your clean button, to discard any recordings
 2. Start/Stop recording button
-3. A quick jump box to quickly jump into stepping any function
+3. A textfield to quickly jump into stepping any recorded function
 4. Your main tools tabs
 5. And finally how much heap you have available, so you can keep an eye on it and clear your recordings when you are
    running out of heap space
 
-Lets click the Start recording button. You should see the icon changing to a Stop, this is how you can tell if you
+## Recording a form compilation
+
+Lets click the Start recording button. You should see the icon changing to a Stop, this is how you can tell you
 are currently recording.
 
 Now that we are recording, lets go to our ClojureScript repl terminal and eval a simple function, like : 
@@ -174,7 +174,7 @@ After you hit enter it will make ClojureScript read and compile that function, w
 
 Once the function is defined we can safely stop recording, since we now have all the records from a compilation of our
 function.
-It is good practice to stop recording when you don't need it since some applications will have threads constantly
+It is good practice to stop recording when we don't need it since some applications will have threads constantly
 polling for example, which will waste our heap and pollute our recordings.
 
 As soon as we have recordings, we will see a list of threads on the left appearing.
@@ -196,10 +196,10 @@ Javascript code.
 There are also 3 important tools there :
 
 1. The call tree (the one we just talked about)
-2. The code stepping tool, where you can step over the code forwards and backwards in time.
+2. The code stepping tool, where we can step over the code forwards and backwards in time.
 3. The functions list, where we get to see all the functions and their calls.
 
-Since this isn't a FlowStorm tutorial I'll not go in depth into any of this tools, you can find the user guide
+Since this isn't a full FlowStorm tutorial I'll not go into the details of any of this tools. You can find the user guide
 [here](https://flow-storm.github.io/flow-storm-debugger/user_guide.html) for more info.
 
 Now lets look at how we can use FlowStorm to try to understand the different phases of the compilation.
@@ -209,9 +209,10 @@ Now lets look at how we can use FlowStorm to try to understand the different pha
 In terms of compilation, the first step made by the ClojureScript compiler is reading.
 
 Read takes a string as the input and outputs a form, which is a nested structure of
-Clojure lists, vectors, maps, etc, representing just the structure on the input string as Clojure data.
+Clojure lists, vectors, maps, etc, representing the structure on the input string as Clojure data.
 
-ClojureScript accomplish this step by calling `clojure.tools.reader/read` which is part of the `clojure.tools.reader` library.
+ClojureScript accomplish this step by calling `clojure.tools.reader/read` which is part of the
+[clojure.tools.reader](https://github.com/clojure/tools.reader) library.
 
 <img src="assets/compilers-with-flow-storm/reader1.png"> 
 
@@ -251,27 +252,27 @@ are plain Clojure maps.
 
 <img src="assets/compilers-with-flow-storm/analyze0-overview.png"> 
 
-The picture above shows the call tree tree expansion for the beginning of the analyze call stack, where we can see how
-`analyze`, `macroexpand-1` and `parse` are being called.
+The picture above shows the call tree expansion for the beginning of the analyze call stack, where we can already see
+how `analyze`, `macroexpand-1` and `parse` are being called.
 
 <img src="assets/compilers-with-flow-storm/analyze0-pases.png"> 
 
 As the analysis process walks down it's input, it will macroexpand, parse and then run several passes on the resulting
 nodes for things like optimizations, type inference, etc as we can see in the picture above. You can jump into the
-`analyze*` function using the quick jump if you want to take a look.
+`analyze*` function body using the quick jump, in case you want to take a look.
 
 
 <img src="assets/compilers-with-flow-storm/analyze1.png"> 
 
 We can take the same approach as we took for the reader, to get a better idea of this analysis functions, by going to
-the functions list and filter it with `analyzer/analyze`. 
+the functions list and filter it with `analyzer/analyze`, like in the picture above.
 
 Lets take a look at `analyze-seq`. This time we are going to mute arguments 1, 3 and 4 using the checkboxes at the top
 and just look at the second one, which contains the form to be analyzed.
 
-As we can see on the right there are calls to `analyze-seq` on many forms, including the one we typed on the repl.
+As we can see on the right, there are calls to `analyze-seq` on many forms, including the one we typed at the repl.
 
-If you look at the one right after it, you will notice it is the same expression but after a `macroexpand-1` call.
+Clojure developers will notice that the call right after the one we typed is the same expression but after a `macroexpand-1` call.
 This is because `analize-seq` will also deal with macroexpansion. You can double click on any of this calls to jump 
 into `analyze-seq` body, and as you will see there, it is in charge of macroexpanding forms, and will also call itself
 recursively if the macroexpansion macroexpanded anything.
@@ -279,7 +280,7 @@ recursively if the macroexpansion macroexpanded anything.
 Now lets click on the `(defn sum [...] ...)` once, the top level expression we typed at the repl.
 
 The panel at the bottom shows the return of `analyze-seq`, a pretty print of the AST node built by it.
-Since it is a nested data structure, it is quite inconvenient to look at it in pretty print form.
+Since it is a nested data structure, it is quite inconvenient to look at in pretty print form.
 
 Luckily FlowStorm comes with a data inspector. Lets click on the `INS` button to open it, which allows us to
 navigate this nested data structures.
@@ -292,7 +293,7 @@ vector of keys for the sub parts of the node, plus information relevant to each 
 We can click around to navigate deeper, and then use the breadcrumbs at the top to navigate backwards.
 
 Even with the inspector, trying to have a sense of the structure of this tree is kind of hard, so lets pull another
-tool.
+trick.
 
 We can take any value back to our repl by giving it a name. While having the inspector at the root of our
 value, click on the `DEF` button then give it a name, lets say `def-op`.
@@ -366,7 +367,7 @@ function.
 
 <img src="assets/compilers-with-flow-storm/emit-js-op.png"> 
 
-To get some more context and see how we got here, we can look at the current stack on the bottom right panel. I looks like
+To get some more context and see how we got here, we can look at the current stack on the bottom right panel. It looks like
 we are in the path of emitting our `:def`, `:fn` and  `:do` ast nodes, which make sense.
 
 Same as `cljs.analyzer/parse` which will create AST nodes based on different Clojure special forms, this
@@ -416,13 +417,13 @@ We can use the fact that `*out*` is bounded to the same mutable value (a `String
 whatever reference we get to it contains the final state, the one it took after the execution.
 
 Most of the time this is not what we want, and FlowStorm provides a way for dealing with mutable objects, if you are
-interested take a look [here](https://flow-storm.github.io/flow-storm-debugger/user_guide.html#_dealing_with_mutable_values)
+interested take a look [here](https://flow-storm.github.io/flow-storm-debugger/user_guide.html#_dealing_with_mutable_values).
 
 But in this case we are going to take advantage of it, and just give this `StringWriter` reference a name, so we can
 take it to our repl, the same we did before for our `def-node`. So we click on the `*out*` expression and then on the `DEF` button at the
 right panel, lets call it `out`
 
-Now lets go to our Clojure repl where we can just print a string representation of it.
+Now lets go to our Clojure repl where we can print a string representation of it.
 
 ```js
 user=> (println (.toString out))
@@ -457,7 +458,7 @@ user=> (println (.toString out))
 ```
 
 And there we have it, a quick way of looking at the entire form generated Javascript. Note that it is the
-full form that is going to be sent to the browser, not just what we typed on the repl. It contains our `sum` function
+full form that was sent to the browser, not just what we typed on the repl. It contains our `sum` function
 definition but also wrapped in some extra code. 
 This extra code prints the result and also sets up ClojureScript repl `*1`, `*2` and `*3` vars and in case of an exception
 also `*e`.
@@ -467,7 +468,7 @@ should be called only once to generate the final string.
 
 # Final notes
 
-We are getting to the end of the post, so wrapping up, we saw a bunch of techniques we can use to debug and understand
+We are reaching the end of the post, so wrapping up, we saw a bunch of techniques we can use to debug and understand
 the ClojureScript compiler. If we are developing it, this gives us a nice workflow : 
 
 * Start recording
