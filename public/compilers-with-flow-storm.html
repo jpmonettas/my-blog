@@ -36,7 +36,7 @@
         <div class="site-nav">
           <a class="page-link" href="archive.html">Archive</a>
           <a class="page-link" href="tags/index.html">Tags</a>
-          <a class="page-link" href="">Discuss</a>
+          <a class="page-link" href="https://github.com/jpmonettas/my-blog/discussions/">Discuss</a>
 	  <a class="page-link" href="atom.xml">
             Feed
           </a>
@@ -150,7 +150,7 @@ user=&gt;
     }
 }&#41;&#40;&#41;
 </code></pre><p>And there we have it, a quick way of looking at the entire form generated Javascript. Note that it is the full form that was sent to the browser, not just what we typed on the repl. It contains our <code>sum</code> function definition but also wrapped in some extra code.  This extra code prints the result and also sets up ClojureScript repl <code>&#42;1</code>, <code>&#42;2</code> and <code>&#42;3</code> vars and in case of an exception also <code>&#42;e</code>.</p><p>Another way to look at the final string is to jump to the <code>emit-str</code> function using the <code>Quick jump</code>. That function should be called only once to generate the final string.</p><h1>Final notes</h1><p>We are reaching the end of the post, so wrapping up, we saw a bunch of techniques we can use to debug and understand the ClojureScript compiler. If we are developing it, this gives us a nice workflow : </p><ul><li>Start recording</li><li>Eval some cljs code on our repl so it compiles it</li><li>Stop recording</li><li>Look around</li><li>Modify/fix and re-eval our compiler code</li><li>Repeat</li></ul><p>All this steps should be pretty fast, since we are re-evaluating just what we changed on the ClojureScript compiler, and also compiling and recording one form at a time.</p><p>Also all the techniques described here are by no mean special to compiler development, they can be used on any Clojure application. </p><p>And that is it, I hope you had a fun reading, find it interesting or learned something. </p><p>Until the next time! Happy hacking!</p>
-<p>Discuss this post <a href="">here</a>.</p>
+<p>Discuss this post <a href="https://github.com/jpmonettas/my-blog/discussions/">here</a>.</p>
 <p><i>Published: 2023-10-19</i></p>
 
 <p>

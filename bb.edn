@@ -5,6 +5,7 @@
   :init (def opts {:blog-author "Juan Monetta"
                    :blog-title "A bi1 0f fun"
                    :blog-description "A blog about Clojure, interactive programming, dev tooling and more..."
+                   :discuss-link "https://github.com/jpmonettas/my-blog/discussions/"
                    :out-dir "public"})
   quickblog {:doc "Start blogging quickly! Run `bb quickblog help` for details."
              :task (cli/dispatch opts)}}}
