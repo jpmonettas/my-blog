@@ -73,7 +73,7 @@ We can now setup FlowStorm by the just cloned project `deps.edn` like this :
   :storm
   {:classpath-overrides {org.clojure/clojure nil} ;; for disabling the official compiler
    :extra-deps {com.github.flow-storm/clojure {:mvn/version "1.11.1-11"}
-                com.github.flow-storm/flow-storm-dbg {:mvn/version "3.8.1"}}
+                com.github.flow-storm/flow-storm-dbg {:mvn/version "3.8.2"}}
    :jvm-opts ["-Dclojure.storm.instrumentEnable=true"
               "-Dclojure.storm.instrumentOnlyPrefixes=cljs"
               "-Dflowstorm.startRecording=false"

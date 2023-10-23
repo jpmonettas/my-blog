@@ -3,7 +3,7 @@
   <title>A bi1 0f fun</title>
   <link href="https://github.com/borkdude/quickblog/atom.xml" rel="self"/>
   <link href="https://github.com/borkdude/quickblog"/>
-  <updated>2023-10-23T11:05:23+00:00</updated>
+  <updated>2023-10-23T17:14:02+00:00</updated>
   <id>https://github.com/borkdude/quickblog</id>
   <author>
     <name>Juan Monetta</name>
@@ -27,7 +27,7 @@ $ cd clojurescript
   :storm
   {:classpath-overrides {org.clojure/clojure nil} ;; for disabling the official compiler
    :extra-deps {com.github.flow-storm/clojure {:mvn/version &quot;1.11.1-11&quot;}
-                com.github.flow-storm/flow-storm-dbg {:mvn/version &quot;3.8.1&quot;}}
+                com.github.flow-storm/flow-storm-dbg {:mvn/version &quot;3.8.2&quot;}}
    :jvm-opts &#91;&quot;-Dclojure.storm.instrumentEnable=true&quot;
               &quot;-Dclojure.storm.instrumentOnlyPrefixes=cljs&quot;
               &quot;-Dflowstorm.startRecording=false&quot;
