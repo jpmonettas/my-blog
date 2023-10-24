@@ -32,14 +32,14 @@ which is of course an over-simplification, but should be enough for following th
 If you like, you can follow along by copying and pasting the commands into your terminal. It will not
 depend on any particular IDE or pre-installed tooling, apart from the [Clojure cli](https://clojure.org/guides/install_clojure) and git.
 
-If it is your first encounter with FlowStorm, we call it a debugger, since a lot of it's features are those found on
-debuggers, but it's capabilities can be used for much more than chasing bugs.
+If it is your first encounter with FlowStorm, we call it a debugger, since a lot of its features are those found on
+debuggers, but its capabilities can be used for much more than chasing bugs.
 
 FlowStorm was designed as a tool for visualizing what is happening inside our Clojure programs as they run, during
 development, and specially designed with interactive programming and immutability in mind.
 
 For people new to Clojure and Lisps in general, interactive programming is about developing a program by
-interacting with it's running process. This is quite different from the more traditional way of writing programs, which
+interacting with its running process. This is quite different from the more traditional way of writing programs, which
 most of the time implies modifying your files, re-compillig everything (hopefully incrementally), running the process,
 stopping it, then rinse and repeat.
 Immutability is about our programs dealing mostly with immutable values, instead of references to mutable objects or places in memory.
@@ -53,11 +53,11 @@ etc, works their best when you know most of the system and you are confident tha
 be enough to reveal the answers to your questions. So on top of that, FlowStorm provides an easy way of recording and visualizing our programs
 execution on demand.
 
-OK, enough preamble, lets jump into it.
+OK, enough preamble, let's jump into it.
 
 # Setting up
 
-For working with the ClojureScript compiler we first need it's sources, so lets start by cloning the official repo's master branch :
+For working with the ClojureScript compiler we first need its sources, so let's start by cloning the official repo's master branch :
 
 ```bash
 $ git clone https://github.com/clojure/clojurescript
@@ -161,10 +161,10 @@ When you just start FlowStorm and you still don't have any recordings you see :
 
 ## Recording a form compilation
 
-Lets click the Start recording button. You should see the icon changing to a Stop, this is how you can tell you
+Let's click the Start recording button. You should see the icon changing to a Stop, this is how you can tell you
 are currently recording.
 
-Now that we are recording, lets go to our ClojureScript repl terminal and eval a simple function, like : 
+Now that we are recording, let's go to our ClojureScript repl terminal and eval a simple function, like : 
 
 ```clojure
 cljs.user=> (defn sum [a b] (+ a b))
@@ -190,7 +190,7 @@ where all the compilation happens, but feel free to explore other threads activi
 As soon as we open a thread we will be faced with the call tree, an expandable tree of all the functions calls
 recorded. Time flows from top to bottom. As you can see in the picture above, just by expanding some nodes we
 already see some familiar functions related to reading, analyzing, macroexpanding, parsing, and emitting. By clicking on the `emit-str`
-function we also get to see the input of `emit-str` which is an AST node, and it's output, which is a string containing
+function we also get to see the input of `emit-str` which is an AST node, and its output, which is a string containing
 Javascript code.
 
 There are also 3 important tools there :
@@ -202,7 +202,7 @@ There are also 3 important tools there :
 Since this isn't a full FlowStorm tutorial I'll not go into the details of any of this tools. You can find the user guide
 [here](https://flow-storm.github.io/flow-storm-debugger/user_guide.html) for more info.
 
-Now lets look at how we can use FlowStorm to try to understand the different phases of the compilation.
+Now let's look at how we can use FlowStorm to try to understand the different phases of the compilation.
 
 # Reading
 
@@ -229,7 +229,7 @@ On the right panel we can see the value for the current expression, the one in g
 As we can see from the `read` source code, it is calling `read*`. Looking at the `read*` arguments and return value
 we can see it goes from a `SourceLoggingPushbackReader` and some options into a Clojure form.
 If we want to step into `read*`, we position the debugger on any expression before the call, and then step next until we
-jump into it's source code.
+jump into its source code.
 
 Since `read*` has been called multiple times there is a better way of looking at it.
 
@@ -243,7 +243,7 @@ a call will show the return value in the bottom panel, while double clicking it 
 
 If you are following along with your own setup, take some time to explore around this read functions.
 
-Now lets move on and explore the analysis of those forms.
+Now let's move on and explore the analysis of those forms.
  
 # Analysis, macroexpansion and parsing
 
@@ -257,7 +257,7 @@ how `analyze`, `macroexpand-1` and `parse` are being called.
 
 <img src="assets/compilers-with-flow-storm/analyze0-pases.png"> 
 
-As the analysis process walks down it's input, it will macroexpand, parse and then run several passes on the resulting
+As the analysis process walks down its input, it will macroexpand, parse and then run several passes on the resulting
 nodes for things like optimizations, type inference, etc as we can see in the picture above. You can jump into the
 `analyze*` function body using the quick jump, in case you want to take a look.
 
@@ -267,7 +267,7 @@ nodes for things like optimizations, type inference, etc as we can see in the pi
 We can take the same approach as we took for the reader, to get a better idea of this analysis functions, by going to
 the functions list and filter it with `analyzer/analyze`, like in the picture above.
 
-Lets take a look at `analyze-seq`. This time we are going to mute arguments 1, 3 and 4 using the checkboxes at the top
+Let's take a look at `analyze-seq`. This time we are going to mute arguments 1, 3 and 4 using the checkboxes at the top
 and just look at the second one, which contains the form to be analyzed.
 
 As we can see on the right, there are calls to `analyze-seq` on many forms, including the one we typed at the repl.
@@ -277,12 +277,12 @@ This is because `analize-seq` will also deal with macroexpansion. You can double
 into `analyze-seq` body, and as you will see there, it is in charge of macroexpanding forms, and will also call itself
 recursively if the macroexpansion macroexpanded anything.
 
-Now lets click on the `(defn sum [...] ...)` once, the top level expression we typed at the repl.
+Now let's click on the `(defn sum [...] ...)` once, the top level expression we typed at the repl.
 
 The panel at the bottom shows the return of `analyze-seq`, a pretty print of the AST node built by it.
 Since it is a nested data structure, it is quite inconvenient to look at in pretty print form.
 
-Luckily FlowStorm comes with a data inspector. Lets click on the `INS` button to open it, which allows us to
+Luckily FlowStorm comes with a data inspector. Let's click on the `INS` button to open it, which allows us to
 navigate this nested data structures.
 
 <img src="assets/compilers-with-flow-storm/analyze1-inspect-def-op.png"> 
@@ -292,11 +292,11 @@ vector of keys for the sub parts of the node, plus information relevant to each 
 
 We can click around to navigate deeper, and then use the breadcrumbs at the top to navigate backwards.
 
-Even with the inspector, trying to have a sense of the structure of this tree is kind of hard, so lets pull another
+Even with the inspector, trying to have a sense of the structure of this tree is kind of hard, so let's pull another
 trick.
 
 We can take any value back to our repl by giving it a name. While having the inspector at the root of our
-value, click on the `DEF` button then give it a name, lets say `def-op`.
+value, click on the `DEF` button then give it a name, let's say `def-op`.
 
 Now we can go to our Clojure repl (not the ClojureScript one) and use that value, unless we assigned a namespace to it,
 it will be defined under `user/def-op`.
@@ -342,12 +342,12 @@ user=> (print-ast-node def-op)
 
 Nice, this will hopefully help us understand the tree structure better.
 
-Moving forward, if you are following along, lets go back to the inspector and dig into this "def-op" node until we reach
+Moving forward, if you are following along, let's go back to the inspector and dig into this "def-op" node until we reach
 the one with `:op :js`, you will have to dig into `[:init :methods 0 :body :ret]` by clicking on each key value.
 
 You should now have a map with the `:op :js` focused on your inspector right pane.
 
-Lets say we want to understand the emission for this particular node. 
+Let's say we want to understand the emission for this particular node. 
 
 A trick we could use is, while keeping the inspector open and focused on our value,
 go to the main FlowStorm window and then :
@@ -421,9 +421,9 @@ interested take a look [here](https://flow-storm.github.io/flow-storm-debugger/u
 
 But in this case we are going to take advantage of it, and just give this `StringWriter` reference a name, so we can
 take it to our repl, the same we did before for our `def-node`. So we click on the `*out*` expression and then on the `DEF` button at the
-right panel, lets call it `out`
+right panel, let's call it `out`
 
-Now lets go to our Clojure repl where we can print a string representation of it.
+Now let's go to our Clojure repl where we can print a string representation of it.
 
 ```js
 user=> (println (.toString out))
